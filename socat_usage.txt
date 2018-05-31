@@ -1,0 +1,5 @@
+Server:
+    socat TCP4-LISTEN:${Server-Port},fork EXEC:/path/to/shell-binary
+
+Client:
+    socat - TCP:$[Server-IP}:${Server-Port}
