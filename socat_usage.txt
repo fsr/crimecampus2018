@@ -1,5 +1,5 @@
 Server:
-    socat TCP4-LISTEN:${Server-Port},fork EXEC:/path/to/shell-binary
+    socat TCP4-LISTEN:9000,reuseaddr,fork EXEC:${/path/to/shell},pty,setsid,setpgid,stderr,ctty
 
 Client:
-    socat - TCP:$[Server-IP}:${Server-Port}
+    socat -,raw,echo=0 TCP:${Server-IP}:9000
