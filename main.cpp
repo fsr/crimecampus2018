@@ -7,11 +7,17 @@
 #include <string>
 #include <vector>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 using namespace std;
 namespace fs = std::filesystem;
 
 struct state_t {
     bool exit = false;
+    fs::path base {"."};
+    std::string prompt;
+    bool input_good = true;
 };
 
 void
@@ -21,35 +27,42 @@ printIntro() {
 }
 
 void
-printPrompt(state_t const & /*state*/) {
-    cout << "[" << fs::current_path().string() << "] > " << flush;
+updatePrompt(state_t &state) {
+    std::stringstream out;
+    out << "[" << fs::current_path().string() << "] > " << flush;
+    state.prompt = out.str();
 }
 
 void
-printOutro() {
-    if (!cin.good()) {
+printOutro(state_t const &state) {
+    if (!state.input_good) {
         cout << endl;
     }
     cout << "Au revoir, mes amis!" << endl;
 }
 
 bool
-is_parent(fs::path const &potential_child, fs::path const &potential_parent) {
-    fs::path::iterator child_it = potential_child.begin();
-    fs::path::iterator parent_it = potential_parent.begin();
-    while (parent_it != potential_parent.end()) {
-        if (*child_it != *parent_it) {
-            return false;
+is_accessible(fs::path base, fs::path path) {
+    base = fs::canonical(base);
+    path = fs::weakly_canonical(path);
+    while (true) {
+        if (path == base) {
+            return true;
         }
 
-        parent_it++;
-        child_it++;
+        fs::path newPath = path.parent_path();
+        if (path != newPath) {
+            path = newPath;
+        } else {
+            break;
+        }
     }
-    return true;
+
+    return false;
 }
 
 void
-cmd_cat(vector<string> const &args, state_t & /*state*/) {
+cmd_cat(vector<string> const &args, state_t & state) {
     if (args.size() != 1) {
         cout << "cat";
         for (string const &arg : args) {
@@ -62,8 +75,13 @@ cmd_cat(vector<string> const &args, state_t & /*state*/) {
 
     fs::path file{args[0]};
 
+    if (!is_accessible(state.base, file)) {
+        cout << "cat: " << file << " is not accessible" << endl;
+        return;
+    }
+
     if (!fs::exists(file)) {
-        cout << "cat: " << file << " doesn't exist";
+        cout << "cat: " << file << " doesn't exist" << endl;
         return;
     }
 
@@ -75,7 +93,7 @@ cmd_cat(vector<string> const &args, state_t & /*state*/) {
 }
 
 void
-cmd_cd(vector<string> const &args, state_t & /*state*/) {
+cmd_cd(vector<string> const &args, state_t & state) {
     if (args.size() != 1) {
         cout << "cd";
         for (string const &arg : args) {
@@ -86,8 +104,14 @@ cmd_cd(vector<string> const &args, state_t & /*state*/) {
         return;
     }
 
+    fs::path new_working_directory{args[0]};
+
+    if (!is_accessible(state.base, new_working_directory)) {
+        cout << "cat: " << new_working_directory << " is not accessible" << endl;
+        return;
+    }
+
     try {
-        fs::path new_working_directory{args[0]};
         fs::current_path(new_working_directory);
     } catch (fs::filesystem_error err) {
         cout << "cd: " << err.what() << endl;
@@ -120,7 +144,7 @@ cmd_help(vector<string> const & /*args*/, state_t & /*state*/) {
 }
 
 void
-cmd_ls(vector<string> const &args, state_t & /*state*/) {
+cmd_ls(vector<string> const &args, state_t & state) {
     if (args.size() >= 2) {
         cout << "ls";
         for (string const &arg : args) {
@@ -134,6 +158,11 @@ cmd_ls(vector<string> const &args, state_t & /*state*/) {
     fs::path target_dir = fs::current_path();
     if (args.size() == 1) {
         target_dir = args[0];
+    }
+
+    if (!is_accessible(state.base, target_dir)) {
+        cout << "ls: " << target_dir << " is not accessible" << endl;
+        return;
     }
 
     if (!fs::exists(target_dir)) {
@@ -153,7 +182,7 @@ cmd_ls(vector<string> const &args, state_t & /*state*/) {
         std::sort(entries.begin(), entries.end());
 
         for (fs::directory_entry entry : entries) {
-            cout << entry.path().filename().string() << endl;
+            cout << entry.path().filename().string() << (entry.is_directory() ? "/" : "") << endl;
         }
     } catch (fs::filesystem_error err) {
         cout << "ls: " << err.what() << endl;
@@ -161,7 +190,7 @@ cmd_ls(vector<string> const &args, state_t & /*state*/) {
 }
 
 void
-cmd_mail(vector<string> const &args, state_t & /*state*/) {
+cmd_mail(vector<string> const &args, state_t & state) {
     if (args.size() != 2) {
         cout << "mail";
         for (string const &arg : args) {
@@ -174,6 +203,11 @@ cmd_mail(vector<string> const &args, state_t & /*state*/) {
 
     fs::path file = args[0];
     string mail_address = args[1];
+
+    if (!is_accessible(state.base, file)) {
+        cout << "mail: " << file << " is not accessible" << endl;
+        return;
+    }
 
     if (!fs::exists(file)) {
         cout << "mail: " << file << " doesn't exist" << endl;
@@ -221,29 +255,34 @@ executeCommand(string const &command_line, state_t &state) {
 }
 
 bool
-getCommand(string &command) {
-    string current_line;
-    while (getline(cin, current_line)) {
-        if (!current_line.empty() && current_line.back() == '\\') {
-            current_line.back() = '\n';
-            command += current_line;
-        } else {
-            command += current_line;
-            break;
-        }
+getCommand(string &command, state_t &state) {
+    char *input = readline(state.prompt.c_str());
+    if (input == nullptr) {
+        state.input_good = false;
+        return false;
     }
 
-    return cin.good();
+    command = std::string(input);
+    if (!command.empty()) {
+        add_history(input);
+    }
+
+    free(input);
+
+    return true;
 }
 
 int
 main(int argc, char **args) {
+    rl_bind_key('\t', rl_insert);
+
     state_t state;
 
     if (argc >= 2) {
         try {
             fs::path new_working_directory{args[1]};
             fs::current_path(new_working_directory);
+            state.base = new_working_directory;
         } catch (fs::filesystem_error err) {
             cout << "cd: " << err.what() << endl;
         }
@@ -253,15 +292,15 @@ main(int argc, char **args) {
 
     while (!state.exit) {
         string command;
-        printPrompt(state);
-        if (!getCommand(command)) {
+        updatePrompt(state);
+        if (!getCommand(command, state)) {
             state.exit = true;
             break;
         }
         executeCommand(command, state);
     }
 
-    printOutro();
+    printOutro(state);
 
     return 0;
 }
