@@ -139,8 +139,6 @@ cmd_help(vector<string> const & /*args*/, state_t & /*state*/) {
          << "Lists the contents of the working directory." << endl;
     cout << setw(35) << "  ls <directory>"
          << "Lists the contents of the given <directory>." << endl;
-    cout << setw(35) << "  mail <file> <email address>"
-         << "Sends a <file> to an <email adress>." << endl;
 }
 
 void
@@ -189,43 +187,11 @@ cmd_ls(vector<string> const &args, state_t & state) {
     }
 }
 
-void
-cmd_mail(vector<string> const &args, state_t & state) {
-    if (args.size() != 2) {
-        cout << "mail";
-        for (string const &arg : args) {
-            cout << " <" << arg << ">";
-        }
-        cout << endl;
-        cout << "Invalid syntax! Usage: mail <file> <email address>" << endl;
-        return;
-    }
-
-    fs::path file = args[0];
-    string mail_address = args[1];
-
-    if (!is_accessible(state.base, file)) {
-        cout << "mail: " << file << " is not accessible" << endl;
-        return;
-    }
-
-    if (!fs::exists(file)) {
-        cout << "mail: " << file << " doesn't exist" << endl;
-        return;
-    }
-
-    fs::path mail_tasks_file = fs::temp_directory_path() / "mail_tasks";
-    ofstream mail_tasks {mail_tasks_file, ios_base::app};
-    mail_tasks << fs::absolute(file) << " " << file.filename() << " " << quoted(mail_address) << endl;
-    mail_tasks.close();
-}
-
 static map<string, function<void(vector<string> const &, state_t &)>> commands{{"cd", cmd_cd},
                                                                                {"cat", cmd_cat},
                                                                                {"exit", cmd_exit},
                                                                                {"help", cmd_help},
-                                                                               {"ls", cmd_ls},
-                                                                               {"mail", cmd_mail}};
+                                                                               {"ls", cmd_ls}};
 
 void
 executeCommand(string const &command_line, state_t &state) {
