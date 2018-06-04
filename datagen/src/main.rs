@@ -27,6 +27,7 @@ struct Options {
 
 fn generate_file_content(
     content: &FileContent,
+    author: &str,
     year: u16,
     rng: &mut ThreadRng,
     target: &str,
@@ -35,14 +36,14 @@ fn generate_file_content(
 
     // Meta data
     template += &format!("Name: {}\n", content.title);
-    template += &format!("Autor: {}\n", "Ayn Rand");
+    template += &format!("Autor: {}\n", author);
     template += &format!(
         "Erstellungsdatum: {d}.{m}.{y}\n",
         d = rng.gen_range(1, 27),
         m = rng.gen_range(1, 13),
         y = year
     );
-    // TODO: document ID
+
     let doc_id: String = rng.sample_iter(&Alphanumeric).take(9).collect();
     template += &format!("Aktenzeichen: {}\n", doc_id);
 
@@ -52,7 +53,7 @@ fn generate_file_content(
         "digital"
     };
     template += &format!("Digitalisierungstechnik: {}\n", tech);
-    template += &format!("Digitalisierungsdatum: {}\n", 2012);
+    template += &format!("Digitalisierungsdatum: {}\n", rng.gen_range(1998, 2019));
 
     template += "--------------------------\n";
 
@@ -98,7 +99,14 @@ fn main() -> io::Result<()> {
 
             for _ in 0..rng.gen_range(1, 9) {
                 let index = rng.gen_range(0, config.texts.len());
-                generate_file_content(&config.texts[index], year, &mut rng, &target)?;
+                let author_index = rng.gen_range(0, config.authors.len());
+                generate_file_content(
+                    &config.texts[index],
+                    &config.authors[author_index],
+                    year,
+                    &mut rng,
+                    &target,
+                )?;
             }
         }
     }
