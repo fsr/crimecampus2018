@@ -6,6 +6,7 @@ extern crate serde_derive;
 extern crate rand;
 
 use clap::{App, Arg};
+use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use std::fs::{create_dir, File};
 use std::io::{self, Write};
@@ -41,6 +42,16 @@ fn generate_file_content(
         m = rng.gen_range(1, 13),
         y = year
     );
+    // TODO: document ID
+    let doc_id: String = rng.sample_iter(&Alphanumeric).take(9).collect();
+    template += &format!("Aktenzeichen: {}\n", doc_id);
+
+    let tech = if rng.gen::<f32>() > 0.6 {
+        "manuell"
+    } else {
+        "digital"
+    };
+    template += &format!("Digitalisierungstechnik: {}\n", tech);
     template += &format!("Digitalisierungsdatum: {}\n", 2012);
 
     template += "--------------------------\n";
